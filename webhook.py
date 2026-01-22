@@ -34,6 +34,31 @@ def wait_css(selector, text=None, timeout=20):
         return els[0]
     return WebDriverWait(driver, timeout).until(condition)
 
+def wait_xpath(xpath, timeout=20):
+    return WebDriverWait(driver, timeout).until(
+        EC.presence_of_element_located((By.XPATH, xpath))
+    )
+
+
+
+
+
+
+
+def coin_name(name):
+    search_btn = wait_xpath("//button[contains(@class,'cursor-pointer') and .//span[contains(.,'USDT')]]")
+    search_btn.click()
+    search_btn = wait_xpath("//input[contains(@class,'arco-input arco-input-size-large')]")
+    search_btn.click()
+    time.sleep(1)
+    search_btn.send_keys(name)
+    first_result = wait_xpath("//div[contains(@class,'arco-list-item')][1]")
+    first_result.click()
+
+
+
+
+
 
 # -----------------------------------------
 # Switch tabs
@@ -73,43 +98,34 @@ def enter_amount(v):
 # -----------------------------------------
 def slide_close_js(percentage):
     try:
-        handle = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, ".arco-slider-btn"))
-        )
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", handle)
-        track = handle.find_element(By.XPATH, "./ancestor::div[contains(@class,'arco-slider')]")
-
+        handle = wait_xpath("//div[contains(@class, 'arco-slider-btn')]")
+        track = wait_xpath("//div[contains(@class, 'arco-slider-track')]")
         rect = driver.execute_script("""
-            const r = arguments[0].getBoundingClientRect();
-            return {left:r.left, width:r.width, top:r.top, height:r.height};
+        const r = arguments[0].getBoundingClientRect();
+        return {left:r.left, width:r.width, top:r.top, height:r.height};
         """, track)
-
         start_x = rect["left"] + 10
         end_x = rect["left"] + rect["width"] * max(0, min(100, percentage)) / 100
         y = rect["top"] + rect["height"] / 2
-
         driver.execute_script("""
-            const h = arguments[0];
-            const sx = arguments[1], sy = arguments[2], ex = arguments[3];
-
-            function fire(type, x, y){
-                h.dispatchEvent(new MouseEvent(type, {
-                    bubbles:true, cancelable:true,
-                    clientX:x, clientY:y,
-                    buttons:1
+        const h = arguments[0];
+        const sx = arguments[1], sy = arguments[2], ex = arguments[3];
+        function fire(type, x, y){
+        h.dispatchEvent(new MouseEvent(type, {
+        bubbles:true, cancelable:true,
+        clientX:x, clientY:y,
+        buttons:1
                 }));
             }
-
-            fire('mousedown', sx, sy);
-            fire('mousemove', ex, sy);
-            fire('mouseup', ex, sy);
+        fire('mousedown', sx, sy);
+        fire('mousemove', ex, sy);
+        fire('mouseup', ex, sy);
         """, handle, start_x, y, end_x)
-
         print(f"[SLIDER] Dragged → {percentage}%")
         time.sleep(0.2)
-
     except Exception as e:
         print(f"[SLIDER ERROR] {e}")
+
 
 
 # -----------------------------------------
@@ -120,13 +136,11 @@ def click_trade_button(label):
     btn = btn_label.find_element(By.XPATH, "./ancestor::button")
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
     print("[TRADE BUTTON LOCATED]", label)
-
     # ============================
     #  SAFE MODE: ACTION REMOVED
     #  (Insert your actual click below)
     # ============================
     btn.click()
-
     return True
 
 
@@ -135,35 +149,28 @@ def click_trade_button(label):
 # -----------------------------------------
 def execute_trade(action, amount=None):
     print("\nEXEC:", action, amount or "FULL")
-
     if action not in ["open_long", "open_short", "close_long", "close_short"]:
         print("[ERROR] Bad action.")
         return
-
     # switch tab
     click_tab("Open" if "open" in action else "Close")
-
     time.sleep(0.6)
-
     # OPEN = enter amount
     if "open" in action:
         if amount is None:
             print("[SAFE] No default amount.")
         else:
-            enter_amount(str(amount))
-
+            slide_close_js(amount)
     # CLOSE = slide 100%
     else:
         slide_close_js(100)
         time.sleep(0.2)
-
     click_trade_button(
         {"open_long": "Open long",
          "open_short": "Open short",
          "close_long": "Close long",
          "close_short": "Close short"}[action]
     )
-
     # reset slider after close
     if "close" in action:
         time.sleep(2)
@@ -176,10 +183,13 @@ def execute_trade(action, amount=None):
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(force=True)
-    action = data.get("action", "").lower()
-    amount = data.get("amount")
-    execute_trade(action, amount)
-    return jsonify({"status": "ok"})
+    coin = data.get("symbol")
+    action = data.get("action")
+    #amount = data.get("amount")
+    coin_name(coin)
+    execute_trade(action, 10)
+
+
 
 
 # -----------------------------------------
