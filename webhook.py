@@ -8,6 +8,9 @@ from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import TimeoutException
+
 import time
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service
@@ -45,18 +48,51 @@ def wait_xpath(xpath, timeout=20):
 
 
 
+
 def coin_name(name):
-    search_btn = wait_xpath("//button[contains(@class,'cursor-pointer') and .//span[contains(.,'USDT')]]")
-    search_btn.click()
-    search_btn = wait_xpath("//input[contains(@class,'arco-input arco-input-size-large')]")
-    search_btn.click()
-    time.sleep(1)
-    search_btn.send_keys(name)
-    first_result = wait_xpath("//div[contains(@class,'arco-list-item')][1]")
-    first_result.click()
+    try:
+        search_btn = wait_xpath("//button[contains(@class,'cursor-pointer') and .//span[contains(.,'USDT')]]")
+        search_btn.click()
+
+        search_input = wait_xpath("//input[contains(@class,'arco-input arco-input-size-large')]")
+        search_input.clear()
+        search_input.send_keys(name + "USDT")
+
+        first_result = wait_xpath("//div[contains(@class,'arco-list-item')][1]", timeout=8)
+        first_result.click()
+        return True
+
+    except TimeoutException:
+        print(f"[COIN] {name} not found or UI not ready")
+        return False
+
+#ajust leverage
+def ajust_leverage():
+    leverage_button = wait_xpath("//div[contains(@class,'flex items-center justify-center fs-12 color-text-1 h30 flex-1 cursor-pointer fm-medium gap-4')]")
+    leverage_button.click()
+    Ajust_Simultaneously = wait_css("label.toggle")
+    time.sleep(2)
+
+    if not Ajust_Simultaneously.is_selected():
+        Ajust_Simultaneously.click()
 
 
+    # Wait for the element
 
+    # Wait for the input element
+    # Wait for the leverage input
+    leverage_input = wait_css("div.leverage-input input.arco-input")
+
+    # Click to focus
+    leverage_input.click()
+
+    # Select all text and overwrite
+    leverage_input.send_keys(Keys.CONTROL, 'a')  # Ctrl+A to select all
+    leverage_input.send_keys("25")  # type new leverage
+
+
+    confirm_btn = wait_css("button.arco-btn-primary", text="Confirm")
+    confirm_btn.click()
 
 
 
@@ -187,7 +223,11 @@ def webhook():
     action = data.get("action")
     #amount = data.get("amount")
     coin_name(coin)
-    execute_trade(action, 10)
+    ajust_leverage()
+    time.sleep(1.2)
+    execute_trade(action, 15)
+    time.sleep(6)
+    driver.get("https://www.bitunix.com")
 
 
 
@@ -203,7 +243,7 @@ if __name__ == "__main__":
     service = Service(executable_path="/usr/local/bin/geckodriver")
 
     driver = webdriver.Firefox(service=service, options=options)
-    driver.get("https://www.bitunix.com/contract-trade/PAXGUSDT")
+    driver.get("https://www.bitunix.com")
     input("\nLogin → Open panel visible → Press ENTER\n")
 
     print("Listening...")
