@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Bitunix Chart</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg:      #080a0f;
+  --bg2:     #0d1017;
+  --bg3:     #111520;
+  --border:  #1a1f2e;
+  --border2: #232840;
+  --text:    #8b92a8;
+  --text2:   #c4cad8;
+  --text3:   #fff;
+  --green:   #00d97e;
+  --green2:  rgba(0,217,126,0.12);
+  --red:     #e8455a;
+  --red2:    rgba(232,69,90,0.12);
+  --blue:    #4e7fff;
+  --blue2:   rgba(78,127,255,0.12);
+  --PAW:     72px;
+  --VOL:     68px;
+  --TIME:    20px;
+  --OB:      156px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--text2);
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+#header {
+  padding: 0 16px;
+  height: 44px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+#sym {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text3);
+  letter-spacing: 0.5px;
+}
+#price {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--green);
+  transition: color 0.2s;
+  letter-spacing: 0.3px;
+}
+#price.down { color: var(--red); }
+#header-divider { width: 1px; height: 20px; background: var(--border); flex-shrink:0; }
+
+/* ── Trade Status (header) ── */
+#trade-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--border2);
+  background: rgba(255,255,255,0.02);
+  flex-shrink: 0;
+}
+#trade-indicator {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: background 0.3s, box-shadow 0.3s;
+  flex-shrink: 0;
+}
+#trade-indicator.short {
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+  animation: pulse-red 2s infinite;
+}
+@keyframes pulse-red {
+  0%,100% { box-shadow: 0 0 6px var(--red); }
+  50%      { box-shadow: 0 0 14px var(--red); }
+}
+#trade-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  transition: color 0.2s;
+}
+#trade-label.short { color: var(--red); }
+#close-trade-btn {
+  display: none;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  background: transparent;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.15s;
+}
+#close-trade-btn.short { color: var(--red); border-color: var(--red); }
+#close-trade-btn.short:hover { background: var(--red2); }
+
+#status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+#dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+#dot.live {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 6px var(--green); }
+  50%      { box-shadow: 0 0 14px var(--green); }
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  padding: 0 12px;
+  height: 32px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.tb {
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
+}
+.tb:hover { color: var(--text2); border-color: var(--border2); }
+.tb.active { color: var(--blue); border-color: var(--blue); background: var(--blue2); }
+
+/* ── Layout ── */
+#wrap { display:flex; flex:1; overflow:hidden; }
+#chart-col { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+#candle-row { flex:1; display:flex; overflow:hidden; }
+#main-canvas { flex:1; display:block; }
+#price-axis { width:var(--PAW); background:var(--bg2); border-left:1px solid var(--border); display:block; }
+#vol-row { height:var(--VOL); display:flex; border-top:1px solid var(--border); flex-shrink:0; }
+#vol-canvas { flex:1; display:block; }
+#vol-ax { width:var(--PAW); background:var(--bg2); border-left:1px solid var(--border); }
+#time-row { height:var(--TIME); display:flex; border-top:1px solid var(--border); flex-shrink:0; }
+#time-canvas {
+  flex:1; display:block; background:var(--bg2);
+  cursor: ew-resize;
+  user-select: none;
+}
+#time-corner { width:var(--PAW); background:var(--bg2); border-left:1px solid var(--border); }
+
+/* ── Order Book ── */
+#ob-panel {
+  width: var(--OB);
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#ob-header {
+  padding: 6px 10px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+#ob-canvas { display:block; flex:1; }
+#ob-footer {
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 9px;
+  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+#ob-footer #spread-val { color: var(--text2); }
+
+/* ── Draggable floating panels ── */
+.float-panel {
+  position: fixed;
+  background: rgba(8,10,15,0.97);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  z-index: 999;
+  backdrop-filter: blur(8px);
+}
+.panel-titlebar {
+  padding: 7px 10px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-transform: uppercase;
+  cursor: grab;
+  user-select: none;
+}
+.panel-titlebar:active { cursor: grabbing; }
+.panel-titlebar::before {
+  content: '⠿';
+  margin-right: 6px;
+  opacity: 0.35;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+/* ── Signal Log ── */
+#signal-log {
+  bottom: 28px;
+  left: 10px;
+  width: 240px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+#signal-log::-webkit-scrollbar { width: 3px; }
+#signal-log::-webkit-scrollbar-track { background: transparent; }
+#signal-log::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.clear-btn {
+  color: var(--border2);
+  cursor: pointer;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  transition: color 0.15s;
+}
+.clear-btn:hover { color: var(--text); }
+#signal-entries { padding: 4px 0; }
+.sig-entry {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.1s;
+}
+.sig-entry:last-child { border-bottom: none; }
+.sig-entry:hover { background: rgba(255,255,255,0.02); }
+.sig-label { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+.sig-meta { text-align: right; }
+.sig-price { color: var(--text2); font-size: 10px; }
+.sig-time { color: var(--text); font-size: 9px; margin-top: 1px; }
+
+/* ── Checklist ── */
+#checklist-box {
+  bottom: 28px;
+  right: 170px;
+  width: 220px;
+}
+#checklist-items { padding: 6px 10px 8px; }
+.cl-item { margin-bottom: 6px; }
+.cl-item:last-child { margin-bottom: 0; }
+.cl-row { display: flex; align-items: center; gap: 6px; }
+.cl-icon { font-size: 11px; flex-shrink: 0; width: 14px; }
+.cl-label { font-size: 9.5px; line-height: 1.3; }
+.cl-label.pass { color: var(--green); }
+.cl-label.fail { color: var(--red); }
+.cl-detail { font-size: 8.5px; color: #3a405a; padding-left: 20px; margin-top: 2px; }
+#cl-all-pass {
+  display: none;
+  text-align: center;
+  padding: 5px 10px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--green);
+  border-top: 1px solid var(--border);
+  letter-spacing: 0.5px;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <span id="sym">DOGEUSDT</span>
+  <div id="header-divider"></div>
+  <span id="price">—</span>
+  <div id="header-divider"></div>
+
+  <div id="trade-status">
+    <div id="trade-indicator"></div>
+    <span id="trade-label">NO POSITION</span>
+    <button id="close-trade-btn" onclick="closeOpenTrade()">CLOSE SHORT</button>
+  </div>
+
+  <div id="status">
+    <div id="dot"></div>
+    <span id="lbl">Connecting</span>
+  </div>
+</div>
+
+<div id="toolbar">
+  <button class="tb active" data-iv="1min">1m</button>
+  <button class="tb" data-iv="5min">5m</button>
+  <button class="tb" data-iv="15min">15m</button>
+  <button class="tb" data-iv="1hour">1H</button>
+  <button class="tb" data-iv="4hour">4H</button>
+  <button class="tb" data-iv="1day">1D</button>
+</div>
+
+<div id="wrap">
+  <div id="chart-col">
+    <div id="candle-row">
+      <canvas id="main-canvas"></canvas>
+      <canvas id="price-axis"></canvas>
+    </div>
+    <div id="vol-row">
+      <canvas id="vol-canvas"></canvas>
+      <div id="vol-ax"></div>
+    </div>
+    <div id="time-row">
+      <canvas id="time-canvas"></canvas>
+      <div id="time-corner"></div>
+    </div>
+  </div>
+  <div id="ob-panel">
+    <div id="ob-header">Order Book</div>
+    <canvas id="ob-canvas"></canvas>
+    <div id="ob-footer">
+      <span>Spread</span>
+      <span id="spread-val">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- Signal Log (draggable) -->
+<div id="signal-log" class="float-panel">
+  <div class="panel-titlebar" id="signal-log-handle">
+    Signal Log
+    <span class="clear-btn" onclick="document.getElementById('signal-entries').innerHTML=''">clear</span>
+  </div>
+  <div id="signal-entries"></div>
+</div>
+
+<!-- Short Setup Checklist (draggable) -->
+<div id="checklist-box" class="float-panel">
+  <div class="panel-titlebar" id="checklist-handle">Short Setup</div>
+  <div id="checklist-items">
+    <div class="cl-item">
+      <div class="cl-row">
+        <span class="cl-icon">⬜</span>
+        <span class="cl-label">Waiting for data…</span>
+      </div>
+    </div>
+  </div>
+  <div id="cl-all-pass">⚡ SETUP READY</div>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────
+const PAW      = 72;
+const VOL_H    = 68;
+const TIME_H   = 20;
+const LOOKBACK = 100;
+
+// DOGE trades at ~$0.10–0.40 so we need 4 decimal places
+const PRICE_DECIMALS = 4;
+const fmtPrice = p => p.toFixed(PRICE_DECIMALS);
+
+// ── State ──────────────────────────────────────────────────
+let candles = [], asks = [], bids = [];
+let cw = 9, scroll = 0, needsDraw = false;
+let autoFollow = true, obOffset = 0;
+let lastScale = { pMin:0, pMax:0, H:0 };
+let currentSymbol = 'DOGEUSDT', currentInterval = '1min';
+let openPosition = null; // 'short' | null
+
+let ema = {}, std = [], sigs = [];
+
+// ── Trade Status UI ────────────────────────────────────────
+function updateTradeStatus(pos) {
+  openPosition = pos;
+  const ind = document.getElementById('trade-indicator');
+  const lbl = document.getElementById('trade-label');
+  const btn = document.getElementById('close-trade-btn');
+
+  ind.className = '';
+  lbl.className = '';
+  btn.className = '';
+
+  if (pos === 'short') {
+    ind.classList.add('short');
+    lbl.classList.add('short');
+    lbl.textContent = '▼ SHORT OPEN';
+    btn.classList.add('short');
+    btn.style.display = 'block';
+  } else {
+    lbl.textContent = 'NO POSITION';
+    btn.style.display = 'none';
+  }
+}
+
+// ── Close button — the ONLY way a short gets closed ───────
+function closeOpenTrade() {
+  if (openPosition !== 'short' || !candles.length) return;
+  const last = candles[candles.length - 1];
+  const closeIdx = candles.length - 2;
+  sigs[closeIdx] = 'XS';
+  logSignal('XS', last.c, closeIdx);
+  updateTradeStatus(null);
+  needsDraw = true;
+}
+
+// ── Checklist renderer ────────────────────────────────────
+function renderChecklist(items) {
+  const container = document.getElementById('checklist-items');
+  const allPass   = document.getElementById('cl-all-pass');
+  container.innerHTML = items.map(item => `
+    <div class="cl-item">
+      <div class="cl-row">
+        <span class="cl-icon">${item.value ? '✅' : '❌'}</span>
+        <span class="cl-label ${item.value ? 'pass' : 'fail'}">${item.label}</span>
+      </div>
+      ${item.detail ? `<div class="cl-detail">${item.detail}</div>` : ''}
+    </div>
+  `).join('');
+  allPass.style.display = (items.length > 0 && items.every(i => i.value)) ? 'block' : 'none';
+}
+
+// ── Indicators ─────────────────────────────────────────────
+function calcEMA(len) {
+  const k = 2 / (len + 1);
+  const r = new Float64Array(candles.length);
+  let e;
+  for (let i = 0; i < candles.length; i++) {
+    const v = (candles[i].h + candles[i].l) / 2;
+    e = i === 0 ? v : v * k + e * (1 - k);
+    r[i] = e;
+  }
+  return r;
+}
+
+function calcSTD() {
+  const v = candles.map(c => c.v);
+  const r = new Float64Array(candles.length).fill(NaN);
+  for (let i = LOOKBACK - 1; i < candles.length; i++) {
+    let s = 0, s2 = 0;
+    for (let j = i - LOOKBACK + 1; j <= i; j++) { s += v[j]; s2 += v[j] * v[j]; }
+    const m = s / LOOKBACK;
+    r[i] = Math.sqrt(s2 / LOOKBACK - m * m);
+  }
+  return r;
+}
+
+function recompute() {
+  [5, 8, 9, 12, 34, 50].forEach(l => { ema[l] = calcEMA(l); });
+  std  = calcSTD();
+  sigs = calcSigs();
+
+  let pos = null;
+  for (let i = 0; i < sigs.length; i++) {
+    if (sigs[i] === 'S')  pos = 'short';
+    if (sigs[i] === 'XS') pos = null;
+  }
+  updateTradeStatus(pos);
+}
+
+function calcSigs() {
+  const s = new Array(candles.length).fill(null);
+  let openPos = null;
+
+  for (let i = 1; i < candles.length; i++) {
+    const c  = candles[i];
+    const sd = std[i];
+    if (!sd || isNaN(sd) || sd === 0) continue;
+
+    const sv  = c.v / sd;
+    const mid = (c.h + c.l) / 2;
+    const top = Math.max(c.o, c.c);
+
+    const upZ = top <= mid && mid <= c.h;
+
+    const e8  = ema[8][i],  e9  = ema[9][i];
+    const e5  = ema[5][i],  e12 = ema[12][i];
+    const e34 = ema[34][i], e50 = ema[50][i];
+
+    const cloud1Bot  = Math.min(e8, e9);
+    const bear       = e8 < e9 && e5 < e12;
+    const cloud3Bull = e34 > e50;
+    const belowCloud = c.c < cloud1Bot;
+    const bearCandle = c.c < c.o;
+
+    if (openPos === null && bear && belowCloud && upZ && sv >= 2.1 && bearCandle && !cloud3Bull) {
+      s[i]    = 'S';
+      openPos = 'short';
+    }
+  }
+  return s;
+}
+
+// ── Signal Log ─────────────────────────────────────────────
+let lastLoggedIdx = -1;
+
+const SIG_META = {
+  S:  { label: '▼ Short',       color: '#e8455a' },
+  XS: { label: '✕ Close Short', color: '#4e7fff' },
+};
+
+function logSignal(sig, price, idx) {
+  if (idx <= lastLoggedIdx) return;
+  lastLoggedIdx = idx;
+
+  const meta = SIG_META[sig] || { label: sig, color: '#fff' };
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const div = document.createElement('div');
+  div.className = 'sig-entry';
+  div.innerHTML = `
+    <span class="sig-label" style="color:${meta.color}">${meta.label}</span>
+    <div class="sig-meta">
+      <div class="sig-price">${fmtPrice(price)}</div>
+      <div class="sig-time">${time}</div>
+    </div>
+  `;
+  document.getElementById('signal-entries').prepend(div);
+
+  const entries = document.getElementById('signal-entries');
+  while (entries.children.length > 20) entries.removeChild(entries.lastChild);
+}
+
+// ── Canvas setup ───────────────────────────────────────────
+const mc = document.getElementById('main-canvas');
+const pa = document.getElementById('price-axis');
+const vc = document.getElementById('vol-canvas');
+const tc = document.getElementById('time-canvas');
+const ob = document.getElementById('ob-canvas');
+const mx = mc.getContext('2d'), px = pa.getContext('2d');
+const vx = vc.getContext('2d'), tx = tc.getContext('2d'), ox = ob.getContext('2d');
+
+function resize() {
+  const cr  = document.getElementById('candle-row');
+  const W   = cr.clientWidth - PAW, H = cr.clientHeight;
+  const vw  = document.getElementById('vol-row').clientWidth - PAW;
+  const tw  = document.getElementById('time-row').clientWidth - PAW;
+  const obh = document.getElementById('ob-panel').clientHeight - 28 - 20;
+  const dpr = devicePixelRatio;
+
+  for (const [c, w, h] of [[mc,W,H],[pa,PAW,H],[vc,vw,VOL_H],[tc,tw,TIME_H],[ob,156,obh]]) {
+    c.width  = w * dpr; c.height = h * dpr;
+    c.style.width  = w + 'px';
+    c.style.height = h + 'px';
+    c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  needsDraw = true;
+}
+window.addEventListener('resize', resize);
+
+// ── Draw ───────────────────────────────────────────────────
+function draw() {
+  const W = mc.clientWidth, H = mc.clientHeight;
+  if (!W || !H) return;
+
+  mx.fillStyle = '#080a0f';
+  mx.fillRect(0, 0, W, H);
+
+  if (!candles.length) {
+    mx.fillStyle = '#4a5068';
+    mx.font = '11px JetBrains Mono';
+    mx.textAlign = 'center';
+    mx.fillText('Waiting for data…', W / 2, H / 2);
+    return;
+  }
+
+  const maxV  = Math.floor(W / cw);
+  const start = Math.max(0, candles.length - maxV - scroll);
+  const vis   = candles.slice(start, candles.length - scroll || undefined);
+  if (!vis.length) return;
+
+  let pMax = Math.max(...vis.map(c => c.h));
+  let pMin = Math.min(...vis.map(c => c.l));
+  const pad = (pMax - pMin) * 0.08 || 0.001;
+  pMax += pad; pMin -= pad;
+  const pr = pMax - pMin;
+  const py = p => H - ((p - pMin) / pr) * H;
+  lastScale = { pMin, pMax, H };
+
+  // Grid lines
+  mx.strokeStyle = 'rgba(255,255,255,0.025)';
+  mx.lineWidth = 1;
+  for (let i = 0; i <= 6; i++) {
+    const y = H / 6 * i;
+    mx.beginPath(); mx.moveTo(0, y); mx.lineTo(W, y); mx.stroke();
+  }
+
+  // EMA clouds
+  const clouds = [
+    { s:8,  l:9,  bull:'rgba(3,97,3,0.35)',    bear:'rgba(136,14,79,0.35)'  },
+    { s:5,  l:12, bull:'rgba(76,175,80,0.18)',  bear:'rgba(244,67,54,0.18)' },
+    { s:34, l:50, bull:'rgba(33,150,243,0.15)', bear:'rgba(255,183,77,0.15)'},
+  ];
+
+  clouds.forEach(({ s, l, bull, bear }) => {
+    if (!ema[s] || !ema[l]) return;
+    for (let i = 0; i < vis.length - 1; i++) {
+      const ci = start + i, ci1 = start + i + 1;
+      const sv = ema[s][ci], lv = ema[l][ci], sv1 = ema[s][ci1], lv1 = ema[l][ci1];
+      if (isNaN(sv) || isNaN(lv)) continue;
+      const x = i * cw + cw / 2, x1 = (i + 1) * cw + cw / 2;
+      mx.beginPath();
+      mx.moveTo(x, py(sv)); mx.lineTo(x1, py(sv1));
+      mx.lineTo(x1, py(lv1)); mx.lineTo(x, py(lv));
+      mx.closePath();
+      mx.fillStyle = (sv + sv1) / 2 >= (lv + lv1) / 2 ? bull : bear;
+      mx.fill();
+    }
+  });
+
+  // Candles
+  vis.forEach((c, i) => {
+    const x   = i * cw + cw / 2;
+    const bw  = Math.max(1, cw - 2);
+    const up  = c.c >= c.o;
+    const ci  = start + i;
+    const sd  = std[ci] || 0;
+    const sv  = sd > 0 ? c.v / sd : 0;
+    const mid = (c.h + c.l) / 2;
+    const ins = mid > Math.min(c.o, c.c) && mid < Math.max(c.o, c.c);
+
+    mx.strokeStyle = up ? '#26c87a' : '#e8455a';
+    mx.lineWidth = 1;
+    mx.beginPath(); mx.moveTo(x, py(c.h)); mx.lineTo(x, py(c.l)); mx.stroke();
+
+    const bodyCol = ins && sv > 2.1
+      ? (up ? 'rgba(0,255,0,0.9)' : 'rgba(255,132,132,0.9)')
+      : (up ? 'rgba(38,200,122,0.8)' : 'rgba(232,69,90,0.8)');
+    mx.fillStyle = bodyCol;
+    const by = Math.min(py(c.o), py(c.c));
+    const bh = Math.max(1, Math.abs(py(c.o) - py(c.c)));
+    mx.fillRect(x - bw / 2, by, bw, bh);
+  });
+
+  // Bubbles
+  vis.forEach((c, i) => {
+    const ci = start + i, sd = std[ci];
+    if (!sd || sd === 0) return;
+    const sv  = c.v / sd;
+    const mid = (c.h + c.l) / 2;
+    const top = Math.max(c.o, c.c), bot = Math.min(c.o, c.c);
+    const upZ = mid >= top && mid <= c.h;
+    const dnZ = mid <= bot && mid >= c.l;
+    if (!upZ && !dnZ) return;
+    if (sv < 0.1) return;
+
+    const r = (sv >= 6.1 ? 9 : sv >= 3.1 ? 7 : sv >= 2.1 ? 5 : sv >= 1.1 ? 3.5 : 2)
+             * Math.max(0.5, Math.min(2.5, cw / 8));
+
+    const t   = Math.min(1, sv / 8);
+    const a   = 0.15 + t * 0.75;
+    const col = dnZ ? `rgba(0,217,0,${a.toFixed(2)})` : `rgba(219,0,0,${a.toFixed(2)})`;
+    const x   = i * cw + cw / 2, y = py(mid);
+
+    mx.beginPath(); mx.arc(x, y, r * 1.8, 0, Math.PI * 2);
+    mx.fillStyle = dnZ
+      ? `rgba(0,217,0,${(a * 0.18).toFixed(2)})`
+      : `rgba(219,0,0,${(a * 0.18).toFixed(2)})`;
+    mx.fill();
+
+    mx.beginPath(); mx.arc(x, y, r, 0, Math.PI * 2);
+    mx.fillStyle = col; mx.fill();
+
+    if (r > 5) {
+      mx.beginPath(); mx.arc(x - r * 0.25, y - r * 0.25, r * 0.28, 0, Math.PI * 2);
+      mx.fillStyle = 'rgba(255,255,255,0.5)'; mx.fill();
+    }
+  });
+
+  // Signal arrows + log
+  vis.forEach((c, i) => {
+    const sig = sigs[start + i];
+    if (!sig) return;
+
+    const x    = i * cw + cw / 2;
+    const sz   = Math.max(4, Math.min(10, cw * 0.7));
+    const isXS = sig === 'XS';
+    const y    = py(c.h) - sz * 2;
+
+    mx.save(); mx.translate(x, y);
+    mx.beginPath();
+
+    if (isXS) {
+      mx.moveTo(-sz, -sz); mx.lineTo(sz,  sz);
+      mx.moveTo( sz, -sz); mx.lineTo(-sz, sz);
+      mx.strokeStyle = 'rgba(78,127,255,0.9)';
+      mx.lineWidth = 2;
+      mx.stroke();
+    } else {
+      mx.moveTo(0, 0); mx.lineTo(-sz, -sz * 1.6); mx.lineTo(sz, -sz * 1.6);
+      mx.closePath();
+      mx.fillStyle = 'rgba(232,69,90,0.92)';
+      mx.fill();
+      mx.fillStyle = '#e8455a';
+      mx.font = `600 ${Math.max(8, sz)}px JetBrains Mono`;
+      mx.textAlign = 'center';
+      mx.fillText('S', 0, -sz * 3.2);
+    }
+
+    mx.restore();
+
+    if (start + i === candles.length - 2) logSignal(sig, c.c, start + i);
+  });
+
+  // Price axis
+  px.fillStyle = '#0d1017'; px.fillRect(0, 0, PAW, H);
+  px.fillStyle = '#4a5068'; px.font = '10px JetBrains Mono'; px.textAlign = 'right';
+  for (let i = 0; i <= 6; i++) {
+    const y = H / 6 * i, p = pMax - (pr / 6) * i;
+    px.fillText(fmtPrice(p), PAW - 6, y + 4);
+  }
+
+  const last = candles[candles.length - 1];
+  if (last) {
+    const ly = py(last.c), up = last.c >= last.o;
+    mx.strokeStyle = up ? '#00d97e' : '#e8455a';
+    mx.lineWidth = 1; mx.setLineDash([3, 4]);
+    mx.beginPath(); mx.moveTo(0, ly); mx.lineTo(W, ly); mx.stroke(); mx.setLineDash([]);
+
+    px.fillStyle = up ? '#00d97e' : '#e8455a';
+    px.fillRect(2, ly - 9, PAW - 4, 18);
+    px.fillStyle = '#fff'; px.textAlign = 'center';
+    px.fillText(fmtPrice(last.c), PAW / 2, ly + 4);
+    px.textAlign = 'right';
+
+    const priceEl = document.getElementById('price');
+    priceEl.textContent = fmtPrice(last.c);
+    priceEl.className   = 'price' + (up ? '' : ' down');
+  }
+
+  // Volume bars
+  const VW = vc.clientWidth;
+  vx.fillStyle = '#080a0f'; vx.fillRect(0, 0, VW, VOL_H);
+  const mv = Math.max(...vis.map(c => c.v)) || 1;
+  vis.forEach((c, i) => {
+    const bh = (c.v / mv) * (VOL_H - 4);
+    vx.fillStyle = c.c >= c.o ? 'rgba(0,217,126,0.4)' : 'rgba(232,69,90,0.4)';
+    vx.fillRect(i * cw + 1, VOL_H - bh, Math.max(1, cw - 2), bh);
+  });
+
+  // Time axis
+  const TW = tc.clientWidth;
+  tx.fillStyle = '#0d1017'; tx.fillRect(0, 0, TW, TIME_H);
+  tx.fillStyle = '#3a405a'; tx.font = '9px JetBrains Mono'; tx.textAlign = 'center';
+  const step = Math.max(1, Math.floor(80 / cw));
+  vis.forEach((c, i) => {
+    if (i % step === 0) {
+      const d = new Date(c.t);
+      const hh = d.getHours().toString().padStart(2,'0');
+      const mm = d.getMinutes().toString().padStart(2,'0');
+      tx.fillText(`${hh}:${mm}`, i * cw + cw / 2, 13);
+    }
+  });
+
+  drawOB();
+}
+
+function drawOB() {
+  const { pMin, pMax, H } = lastScale;
+  if (!H) return;
+  const oMin = pMin + obOffset, oMax = pMax + obOffset, or_ = oMax - oMin;
+  const OW = ob.clientWidth, OH = ob.clientHeight;
+
+  ox.fillStyle = '#0d1017'; ox.fillRect(0, 0, OW, OH);
+
+  const opy = p => OH - ((p - oMin) / or_) * OH;
+  const visA = asks.filter(([p]) => { const f = parseFloat(p); return f >= oMin && f <= oMax; });
+  const visB = bids.filter(([p]) => { const f = parseFloat(p); return f >= oMin && f <= oMax; });
+  const mq   = Math.max(...visA.map(r => r[1]), ...visB.map(r => r[1]), 0.001);
+  const tot  = visA.length + visB.length || 1;
+  const rh   = Math.max(1, OH / tot * 0.85);
+  const bm   = OW * 0.92;
+
+  visA.forEach(([p, q]) => {
+    const y = opy(parseFloat(p)), bw = (q / mq) * bm;
+    ox.fillStyle = `rgba(232,69,90,${0.12 + (q / mq) * 0.45})`;
+    ox.fillRect(0, y - rh / 2, bw, rh);
+  });
+
+  visB.forEach(([p, q]) => {
+    const y = opy(parseFloat(p)), bw = (q / mq) * bm;
+    ox.fillStyle = `rgba(0,217,126,${0.12 + (q / mq) * 0.45})`;
+    ox.fillRect(0, y - rh / 2, bw, rh);
+  });
+
+  if (asks.length && bids.length) {
+    const sp = (parseFloat(asks[0][0]) - parseFloat(bids[0][0])).toFixed(4);
+    document.getElementById('spread-val').textContent = sp;
+  }
+}
+
+// ── RAF loop ───────────────────────────────────────────────
+function loop() { if (needsDraw) { draw(); needsDraw = false; } requestAnimationFrame(loop); }
+
+// ── Main canvas controls ───────────────────────────────────
+mc.addEventListener('wheel', e => {
+  e.preventDefault();
+  autoFollow = false;
+  if (e.shiftKey) scroll = Math.max(0, Math.min(candles.length - 2, scroll + Math.sign(e.deltaY) * 3));
+  else cw = Math.max(2, Math.min(60, cw * (e.deltaY < 0 ? 1.1 : 0.9)));
+  needsDraw = true;
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === '+' || e.key === '=')  { cw = Math.min(60, cw * 1.15); needsDraw = true; }
+  else if (e.key === '-')              { cw = Math.max(2, cw * 0.87);  needsDraw = true; }
+  else if (e.key === 'ArrowLeft')      { autoFollow = false; scroll = Math.min(candles.length - 2, scroll + 5); needsDraw = true; }
+  else if (e.key === 'ArrowRight')     { scroll = Math.max(0, scroll - 5); if (scroll === 0) autoFollow = true; needsDraw = true; }
+  else if (e.key === '0')              { scroll = 0; autoFollow = true; needsDraw = true; }
+});
+
+// ── Time-axis scrubbing ────────────────────────────────────
+let timeDrag = false, timeDragStartX = 0, timeDragStartScroll = 0;
+
+tc.addEventListener('mousedown', e => {
+  timeDrag = true;
+  timeDragStartX      = e.clientX;
+  timeDragStartScroll = scroll;
+  autoFollow = false;
+  tc.style.cursor = 'grabbing';
+  e.preventDefault();
+});
+
+window.addEventListener('mousemove', e => {
+  if (!timeDrag) return;
+  const dx        = e.clientX - timeDragStartX;
+  const candlesDx = Math.round(-dx / cw);
+  scroll = Math.max(0, Math.min(candles.length - 2, timeDragStartScroll + candlesDx));
+  needsDraw = true;
+});
+
+window.addEventListener('mouseup', () => {
+  if (!timeDrag) return;
+  timeDrag = false;
+  tc.style.cursor = 'ew-resize';
+  if (scroll === 0) autoFollow = true;
+});
+
+tc.addEventListener('touchstart', e => {
+  timeDrag = true;
+  timeDragStartX      = e.touches[0].clientX;
+  timeDragStartScroll = scroll;
+  autoFollow = false;
+}, { passive: true });
+
+window.addEventListener('touchmove', e => {
+  if (!timeDrag) return;
+  const dx        = e.touches[0].clientX - timeDragStartX;
+  const candlesDx = Math.round(-dx / cw);
+  scroll = Math.max(0, Math.min(candles.length - 2, timeDragStartScroll + candlesDx));
+  needsDraw = true;
+}, { passive: true });
+
+window.addEventListener('touchend', () => {
+  timeDrag = false;
+  if (scroll === 0) autoFollow = true;
+});
+
+// ── Order book scroll ──────────────────────────────────────
+const obp = document.getElementById('ob-panel');
+obp.addEventListener('wheel', e => {
+  e.preventDefault(); e.stopPropagation();
+  const { pMin, pMax } = lastScale;
+  obOffset -= (pMax - pMin) * 0.04 * Math.sign(e.deltaY);
+  drawOB();
+}, { passive: false });
+obp.addEventListener('dblclick', () => { obOffset = 0; drawOB(); });
+
+// ── Interval buttons ───────────────────────────────────────
+document.querySelectorAll('.tb[data-iv]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentInterval = btn.dataset.iv;
+    document.querySelectorAll('.tb').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    candles = []; recompute(); needsDraw = true;
+    if (ws && ws.readyState === WebSocket.OPEN)
+      ws.send(JSON.stringify({ type: 'setInterval', interval: currentInterval }));
+  });
+});
+
+// ── Draggable panels ───────────────────────────────────────
+function makeDraggable(panel, handle) {
+  let dragging = false, ox_ = 0, oy_ = 0;
+
+  function initPos() {
+    if (panel.style.top) return;
+    const r = panel.getBoundingClientRect();
+    panel.style.top    = r.top  + 'px';
+    panel.style.left   = r.left + 'px';
+    panel.style.bottom = 'unset';
+    panel.style.right  = 'unset';
+  }
+
+  handle.addEventListener('mousedown', e => {
+    initPos();
+    dragging = true;
+    const r = panel.getBoundingClientRect();
+    ox_ = e.clientX - r.left;
+    oy_ = e.clientY - r.top;
+    panel.style.transition = 'none';
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    let nx = e.clientX - ox_;
+    let ny = e.clientY - oy_;
+    nx = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth,  nx));
+    ny = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, ny));
+    panel.style.left = nx + 'px';
+    panel.style.top  = ny + 'px';
+  });
+
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  handle.addEventListener('touchstart', e => {
+    initPos();
+    dragging = true;
+    const r = panel.getBoundingClientRect();
+    ox_ = e.touches[0].clientX - r.left;
+    oy_ = e.touches[0].clientY - r.top;
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    let nx = e.touches[0].clientX - ox_;
+    let ny = e.touches[0].clientY - oy_;
+    nx = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth,  nx));
+    ny = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, ny));
+    panel.style.left = nx + 'px';
+    panel.style.top  = ny + 'px';
+  }, { passive: true });
+
+  window.addEventListener('touchend', () => { dragging = false; });
+}
+
+makeDraggable(document.getElementById('signal-log'),    document.getElementById('signal-log-handle'));
+makeDraggable(document.getElementById('checklist-box'), document.getElementById('checklist-handle'));
+
+// ── WebSocket ──────────────────────────────────────────────
+let ws;
+
+function connect() {
+  ws = new WebSocket('ws://localhost:8765');
+
+  ws.onopen = () => {
+    document.getElementById('dot').classList.add('live');
+    document.getElementById('lbl').textContent = 'Live';
+  };
+
+  ws.onclose = () => {
+    document.getElementById('dot').classList.remove('live');
+    document.getElementById('lbl').textContent = 'Reconnecting';
+    setTimeout(connect, 2000);
+  };
+
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'init') {
+      candles = msg.candles || [];
+      asks    = msg.asks    || [];
+      bids    = msg.bids    || [];
+      if (msg.symbol) {
+        currentSymbol = msg.symbol;
+        document.getElementById('sym').textContent = msg.symbol;
+      }
+      recompute(); needsDraw = true;
+
+    } else if (msg.type === 'candle') {
+      const c = msg.data;
+      if (candles.length && candles.at(-1).t === c.t) candles[candles.length - 1] = c;
+      else { candles.push(c); if (candles.length > 500) candles.shift(); }
+      if (autoFollow) scroll = 0;
+      recompute(); needsDraw = true;
+
+    } else if (msg.type === 'checklist') {
+      renderChecklist(msg.items || []);
+
+    } else if (msg.type === 'depth') {
+      asks = msg.asks; bids = msg.bids; drawOB();
+    }
+  };
+}
+
+// ── Init ───────────────────────────────────────────────────
+resize();
+loop();
+connect();
+setInterval(() => { if (lastScale.H) drawOB(); }, 1000);
+</script>
+</body>
+</html>
