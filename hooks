@@ -1,0 +1,10 @@
+fetch('http://localhost:5000/webhook', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    symbol: currentSymbol.replace('USDT', ''),
+    action: 'close_short',
+    amount: 30,
+    leverage: 25
+  })
+}).then(r => r.json()).then(console.log)
