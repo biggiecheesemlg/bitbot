@@ -7,17 +7,25 @@ EMA cloud calculations
 Absorption bubble (Tier A–E) detection
 Auto short signal + webhook trigger
 Simple browser UI (chart.html)
+
+
 Install
 pip install websocket-client websockets requests
 Run
 python server.py
+
+
 Open
 http://localhost:8080
+
+
 Config (top of file)
 SYMBOL – trading pair (default: DOGEUSDT)
 INTERVAL – timeframe (1min, 5min, etc.)
 WEBHOOK_URL – signal endpoint
 TRADE_AMOUNT, TRADE_LEVERAGE
+
+
 How it works
 Fetches ~200 historical candles (REST)
 Subscribes to live candles (WebSocket)
@@ -30,6 +38,8 @@ Triggers signal when:
 Giant green candle (3× avg body)
 Tier D/E lower bubble
 Price above all EMA clouds
+
+
 Sends webhook:
 {
   "symbol": "DOGE",
@@ -37,8 +47,8 @@ Sends webhook:
   "amount": 30,
   "leverage": 25
 }
+
 Notes
-Only open short is automated
-Closing is manual (via UI)
+Only open short is automated and excuted with bitunix_orderbook.py
+
 WebSocket server: ws://localhost:8765
-If you want, I can make a slightly more “GitHub-polished” version (badges, screenshots, diagram) or an ultra-short one-liner style.
