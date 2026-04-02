@@ -256,7 +256,8 @@ def build_checklist(candles: list, emas: dict, stds: list) -> list:
 
         bub_j = classify_bubble(c_j, sv_j)
 
-        if bub_j and bub_j["tier"] in ("D", "E") and bub_j["is_up"] and j<20:
+        if bub_j and bub_j["tier"] in ("D", "E") and bub_j["is_up"] and bars_ago < 20:
+
             if bubble_fired_ago is None or bars_ago < bubble_fired_ago:
                 bubble_fired_ago = bars_ago
             if sv_j > bubble_best_sv:
@@ -513,31 +514,58 @@ def on_message(ws, message):
     ch = data.get("ch", "")
     if "kline" not in ch:
         return
-
     payload = data.get("data", {})
     if not payload:
         return
 
+    interval_ms = {
+        "1min": 60000, "5min": 300000, "15min": 900000,
+        "30min": 1800000, "1hour": 3600000,
+        "2hour": 7200000, "4hour": 14400000,
+        "6hour": 21600000, "1day": 86400000,
+        "1week": 604800000,
+    }.get(current_interval, 60000)
+
+    # ── use payload timestamp, floor to interval boundary ─────────────
+    raw_ts = int(payload.get("t", payload.get("ts", int(time.time() * 1000))))
+    candle_ts = (raw_ts // interval_ms) * interval_ms
+    # ── build candle ───────────────────────────────────────────────────
     candle = {
-        "t": int(data.get("ts", data.get("t", 0))),
+        "t": candle_ts,
         "o": float(payload.get("o", 0)),
         "h": float(payload.get("h", 0)),
         "l": float(payload.get("l", 0)),
         "c": float(payload.get("c", 0)),
-        "v": float(payload.get("q", 0)),
+        "v": float(payload.get("q", payload.get("v", 0))),
     }
 
+    # ── merge logic ────────────────────────────────────────────────────
     with lock:
         candles = state["candles"]
-        if candles and candles[-1]["t"] == candle["t"]:
-            candles[-1] = candle
-            new_candle  = False
-        else:
+
+        if not candles:
             candles.append(candle)
-            if len(candles) > 500:
-                candles.pop(0)
             new_candle = True
 
+        else:
+            last = candles[-1]
+
+            if candle_ts == last["t"]:
+                # ✅ update live candle
+                last["c"] = candle["c"]
+                last["h"] = max(last["h"], candle["h"])
+                last["l"] = min(last["l"], candle["l"])
+                last["v"] = candle["v"]
+                new_candle = False
+
+            else:
+                # ✅ new candle
+                candles.append(candle)
+
+                if len(candles) > 500:
+                    candles.pop(0)
+
+                new_candle = True
     broadcast({"type": "candle", "data": candle})
     if new_candle:
         threading.Thread(target=recompute_and_check, daemon=True).start()
