@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BTC Polymarket Predictor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Bebas+Neue&display=swap');
+
+  :root {
+    --bg:       #080b0f;
+    --bg2:      #0d1117;
+    --bg3:      #161b22;
+    --border:   #21262d;
+    --green:    #00ff88;
+    --red:      #ff3366;
+    --yellow:   #ffd700;
+    --blue:     #58a6ff;
+    --muted:    #484f58;
+    --text:     #c9d1d9;
+    --text2:    #8b949e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: 48px 1fr;
+    grid-template-columns: 1fr 320px;
+  }
+
+  /* ── Header ── */
+  header {
+    grid-column: 1 / -1;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 24px;
+  }
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: var(--green);
+  }
+  .header-stat { display: flex; flex-direction: column; gap: 1px; }
+  .header-stat .label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .header-stat .value { font-size: 14px; font-weight: 600; }
+  .btc-price  { color: var(--yellow); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); margin-left: auto;
+    box-shadow: 0 0 0 0 rgba(0,255,136,0);
+    transition: background 0.3s;
+  }
+  .status-dot.live {
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(0,255,136,0.6); }
+    70%  { box-shadow: 0 0 0 6px rgba(0,255,136,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,255,136,0); }
+  }
+
+  /* ── Main area ── */
+  main {
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .card-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* ── Prediction card ── */
+  .pred-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+  }
+  .pred-direction {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    letter-spacing: 4px;
+    line-height: 1;
+    margin-bottom: 8px;
+    transition: color 0.4s;
+  }
+  .pred-direction.up   { color: var(--green); text-shadow: 0 0 20px rgba(0,255,136,0.4); }
+  .pred-direction.down { color: var(--red);   text-shadow: 0 0 20px rgba(255,51,102,0.4); }
+  .pred-direction.flat { color: var(--muted); }
+
+  .pred-bars { display: flex; gap: 8px; margin: 10px 0; align-items: center; }
+  .pred-bar-wrap { flex: 1; }
+  .pred-bar-label { font-size: 9px; color: var(--muted); margin-bottom: 3px; display: flex; justify-content: space-between; }
+  .pred-bar-track { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+  .pred-bar-fill  { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+  .pred-bar-fill.up   { background: var(--green); }
+  .pred-bar-fill.down { background: var(--red); }
+
+  .pred-confidence {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin-top: 6px;
+  }
+  .conf-HIGH   { background: rgba(0,255,136,0.15); color: var(--green); }
+  .conf-MEDIUM { background: rgba(255,215,0,0.15);  color: var(--yellow); }
+  .conf-LOW    { background: rgba(72,79,88,0.3);    color: var(--muted); }
+
+  .most-likely {
+    margin-top: 10px;
+    padding: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--blue);
+  }
+  .most-likely .ml-label { font-size: 9px; color: var(--muted); margin-bottom: 3px; }
+
+  /* ── Odds table ── */
+  .odds-row {
+    display: grid;
+    grid-template-columns: 1fr 60px 60px 70px;
+    gap: 4px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.2s;
+  }
+  .odds-row:hover { background: rgba(255,255,255,0.02); }
+  .odds-row:last-child { border-bottom: none; }
+  .odds-question { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .odds-mid  { text-align: right; font-weight: 600; }
+  .odds-sprd { text-align: right; color: var(--muted); }
+  .odds-mom  { text-align: right; }
+  .odds-mid.high  { color: var(--green); }
+  .odds-mid.med   { color: var(--yellow); }
+  .odds-mid.low   { color: var(--text2); }
+  .mom-up   { color: var(--green); }
+  .mom-down { color: var(--red); }
+  .mom-flat { color: var(--muted); }
+
+  .odds-header {
+    display: grid;
+    grid-template-columns: 1fr 60px 60px 70px;
+    gap: 4px;
+    padding: 0 0 6px 0;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+  .odds-header span:not(:first-child) { text-align: right; }
+
+  /* ── Prob bar ── */
+  .prob-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+  .prob-label { width: 100px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .prob-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .prob-fill  { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+  .prob-val   { width: 38px; text-align: right; font-weight: 600; font-size: 10px; }
+
+  /* ── Stats grid ── */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-box { background: var(--bg); border-radius: 4px; padding: 8px; }
+  .stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-value { font-size: 16px; font-weight: 700; margin-top: 2px; }
+
+  /* ── Log ── */
+  .log-list { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+  .log-item { color: var(--muted); font-size: 10px; }
+  .log-item .ts { color: var(--border); margin-right: 6px; }
+  .log-item.pred { color: var(--text); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .spinner { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">BTC · POLY · AI</div>
+
+  <div class="header-stat">
+    <span class="label">BTC Price</span>
+    <span class="value btc-price" id="h-btc">—</span>
+  </div>
+
+  <div class="header-stat">
+    <span class="label">Live Books</span>
+    <span class="value" id="h-books">0/20</span>
+  </div>
+
+  <div class="header-stat">
+    <span class="label">Model Rows</span>
+    <span class="value" id="h-rows">0</span>
+  </div>
+
+  <div class="header-stat">
+    <span class="label">Curve Entropy</span>
+    <span class="value" id="h-entropy">—</span>
+  </div>
+
+  <div class="header-stat">
+    <span class="label">Days Left</span>
+    <span class="value" id="h-days">—</span>
+  </div>
+
+  <div class="status-dot" id="status-dot"></div>
+</header>
+
+<main>
+
+  <!-- Prediction -->
+  <div class="pred-card">
+    <div class="card-title">AI Prediction — BTC Direction</div>
+    <div class="pred-direction flat" id="pred-dir"><span class="spinner">⟳</span> Collecting data…</div>
+
+    <div class="pred-bars">
+      <div class="pred-bar-wrap">
+        <div class="pred-bar-label"><span>UP ↑</span><span id="prob-up-val">—</span></div>
+        <div class="pred-bar-track"><div class="pred-bar-fill up" id="prob-up-bar" style="width:50%"></div></div>
+      </div>
+      <div class="pred-bar-wrap">
+        <div class="pred-bar-label"><span>DOWN ↓</span><span id="prob-down-val">—</span></div>
+        <div class="pred-bar-track"><div class="pred-bar-fill down" id="prob-down-bar" style="width:50%"></div></div>
+      </div>
+    </div>
+
+    <div class="pred-confidence conf-LOW" id="pred-conf">NO MODEL</div>
+
+    <div class="most-likely">
+      <div class="ml-label">MARKET CONSENSUS — MOST LIKELY OUTCOME</div>
+      <div id="most-likely-text">Waiting for order books…</div>
+    </div>
+  </div>
+
+  <!-- Probability curve heatmap -->
+  <div class="card">
+    <div class="card-title">Probability Curve — All Outcomes</div>
+    <div id="prob-curve"></div>
+  </div>
+
+</main>
+
+<aside>
+
+  <!-- Odds table -->
+  <div class="card" style="flex:1">
+    <div class="card-title">Live Odds</div>
+    <div class="odds-header">
+      <span>Outcome</span><span>Mid</span><span>Spread</span><span>Mom</span>
+    </div>
+    <div id="odds-table"></div>
+  </div>
+
+  <!-- Log -->
+  <div class="card" style="max-height:200px; overflow-y:auto;">
+    <div class="card-title">Signal Log</div>
+    <ul class="log-list" id="log-list"></ul>
+  </div>
+
+</aside>
+
+<script>
+const WS_URL = 'ws://localhost:8091';
+let ws, reconnectDelay = 1000;
+let lastStatus = null;
+let logItems = [];
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    document.getElementById('status-dot').classList.add('live');
+    reconnectDelay = 1000;
+    log('Connected to predictor', 'info');
+  };
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'status')     handleStatus(msg);
+    if (msg.type === 'prediction') handlePrediction(msg);
+  };
+  ws.onclose = () => {
+    document.getElementById('status-dot').classList.remove('live');
+    setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+  };
+  ws.onerror = () => ws.close();
+}
+
+function handleStatus(msg) {
+  lastStatus = msg;
+
+  // Header stats
+  if (msg.btc_price) {
+    document.getElementById('h-btc').textContent = '$' + msg.btc_price.toLocaleString('en-US', {maximumFractionDigits: 0});
+  }
+  document.getElementById('h-books').textContent  = (msg.n_books_live || 0) + '/20';
+  document.getElementById('h-rows').textContent   = (msg.model_rows || 0).toLocaleString();
+  document.getElementById('h-entropy').textContent = msg.curve_entropy != null ? msg.curve_entropy.toFixed(3) : '—';
+
+  // Days to expiry from first snapshot
+  if (msg.odds && msg.odds.length > 0) {
+    const snap = msg;
+    // we get days_to_expiry indirectly via the feature — parse from timestamp proximity
+    // show days remaining until May 1 2026
+    const resolve = new Date('2026-05-01T04:00:00Z').getTime();
+    const days = ((resolve - Date.now()) / 86400000).toFixed(1);
+    document.getElementById('h-days').textContent = days + 'd';
+  }
+
+  // Probability curve
+  renderProbCurve(msg.odds || []);
+
+  // Odds table
+  renderOddsTable(msg.odds || []);
+}
+
+function handlePrediction(msg) {
+  const dir = document.getElementById('pred-dir');
+  const isUp = msg.prob_up > 0.55;
+  const isDn = msg.prob_down > 0.55;
+
+  dir.className = 'pred-direction ' + (isUp ? 'up' : isDn ? 'down' : 'flat');
+  dir.textContent = msg.direction || '—';
+
+  const pUp = ((msg.prob_up || 0.5) * 100).toFixed(1) + '%';
+  const pDn = ((msg.prob_down || 0.5) * 100).toFixed(1) + '%';
+  document.getElementById('prob-up-val').textContent   = pUp;
+  document.getElementById('prob-down-val').textContent = pDn;
+  document.getElementById('prob-up-bar').style.width   = pUp;
+  document.getElementById('prob-down-bar').style.width = pDn;
+
+  const conf = document.getElementById('pred-conf');
+  conf.textContent = msg.confidence || '—';
+  conf.className = 'pred-confidence conf-' + (msg.confidence || 'LOW');
+
+  document.getElementById('most-likely-text').textContent = msg.most_likely || '—';
+
+  if (msg.prob_up != null) {
+    log(`${msg.direction}  P↑=${pUp}  edge=${((msg.edge||0)*100).toFixed(1)}%  [${msg.confidence}]`, 'pred');
+  }
+}
+
+function renderProbCurve(odds) {
+  const el = document.getElementById('prob-curve');
+  if (!odds.length) { el.innerHTML = '<div style="color:var(--muted);font-size:10px">Waiting for order books…</div>'; return; }
+
+  // Sort by mid descending for display
+  const sorted = [...odds].sort((a, b) => (b.yes_mid || 0) - (a.yes_mid || 0));
+  const maxMid = Math.max(...sorted.map(o => o.yes_mid || 0), 0.001);
+
+  el.innerHTML = sorted.map(o => {
+    const mid = o.yes_mid || 0;
+    const pct = (mid / maxMid * 100).toFixed(1);
+    const pctLabel = (mid * 100).toFixed(1) + '%';
+    const label = (o.question || '').replace('Will Bitcoin ', '').replace(' in April?', '');
+
+    // Color: green if high prob, yellow if medium, grey if low
+    const hue = mid > 0.3 ? '#00ff88' : mid > 0.1 ? '#ffd700' : mid > 0.03 ? '#58a6ff' : '#484f58';
+
+    return `<div class="prob-row">
+      <span class="prob-label" title="${o.question}">${label}</span>
+      <div class="prob-track">
+        <div class="prob-fill" style="width:${pct}%;background:${hue}"></div>
+      </div>
+      <span class="prob-val" style="color:${hue}">${pctLabel}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderOddsTable(odds) {
+  const el = document.getElementById('odds-table');
+  if (!odds.length) { el.innerHTML = ''; return; }
+
+  const sorted = [...odds].sort((a, b) => (b.yes_mid || 0) - (a.yes_mid || 0));
+
+  el.innerHTML = sorted.map(o => {
+    const mid  = o.yes_mid;
+    const sprd = o.spread;
+    const mom  = o.momentum;
+    const label = (o.question || '').replace('Will Bitcoin ', '').replace(' in April?', '');
+
+    const midClass = mid > 0.3 ? 'high' : mid > 0.05 ? 'med' : 'low';
+    const midStr   = mid != null ? (mid * 100).toFixed(1) + '%' : '—';
+    const sprdStr  = sprd != null ? sprd.toFixed(3) : '—';
+
+    let momStr = '—', momClass = 'mom-flat';
+    if (mom != null && !isNaN(mom)) {
+      if      (mom > 0.001)  { momStr = '▲ ' + mom.toFixed(3); momClass = 'mom-up'; }
+      else if (mom < -0.001) { momStr = '▼ ' + Math.abs(mom).toFixed(3); momClass = 'mom-down'; }
+      else                   { momStr = '● 0.000'; momClass = 'mom-flat'; }
+    }
+
+    return `<div class="odds-row">
+      <span class="odds-question" title="${o.question}">${label}</span>
+      <span class="odds-mid ${midClass}">${midStr}</span>
+      <span class="odds-sprd">${sprdStr}</span>
+      <span class="odds-mom ${momClass}">${momStr}</span>
+    </div>`;
+  }).join('');
+}
+
+function log(text, type = 'info') {
+  const ts = new Date().toTimeString().slice(0, 8);
+  logItems.unshift({ ts, text, type });
+  if (logItems.length > 50) logItems.pop();
+
+  const el = document.getElementById('log-list');
+  el.innerHTML = logItems.slice(0, 20).map(i =>
+    `<li class="log-item ${i.type}"><span class="ts">${i.ts}</span>${i.text}</li>`
+  ).join('');
+}
+
+connect();
+</script>
+</body>
+</html>
